@@ -1,12 +1,18 @@
 set(SPONZA_SOURCES
     main.cpp)
 
-add_executable(sponza_dx12 ${SPONZA_SOURCES})
+add_executable(sponza_dx12 WIN32 ${SPONZA_SOURCES})
 
 # Mirror the files on disk in the Solution Explorer view
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${SPONZA_SOURCES})
 
 target_include_directories(sponza_dx12 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+
+target_compile_definitions(sponza_dx12 PRIVATE
+    WIN32_LEAN_AND_MEAN
+    # TODO(sbalse): Do we need these UNICODE defines? Can we directly use either the A or W variants of Win32 functions everywhere?
+    UNICODE
+    _UNICODE)
 
 set_target_properties(sponza_dx12 PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${SPONZA_BIN_DIR}"
