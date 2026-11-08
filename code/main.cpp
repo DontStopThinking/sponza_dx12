@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #include "app/app.h"
+#include "system/log.h"
 
 static App g_app = {};
 
@@ -50,6 +51,8 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 {
+    logInfo("Starting sponza DX12 renderer...");
+
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
     WNDCLASSEX windowClass = {};

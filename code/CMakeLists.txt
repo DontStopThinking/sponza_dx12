@@ -1,7 +1,9 @@
 set(SPONZA_SOURCES
     main.cpp
     app/app.h
-    app/app.cpp)
+    app/app.cpp
+    system/log.h
+    system/log.cpp)
 
 add_executable(sponza_dx12 WIN32 ${SPONZA_SOURCES})
 
