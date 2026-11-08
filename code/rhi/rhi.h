@@ -1,30 +1,20 @@
 #pragma once
 
+#include <string>
+
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
-#include "system/log.h"
-
-#define VERIFY_HR(expr) \
-    do \
-    { \
-        const HRESULT hr_ = (expr); \
-        if (FAILED(hr_)) \
-        { \
-            logError("HRESULT: 0x{:08X}", static_cast<uint32_t>(hr_)); \
-            if (IsDebuggerPresent()) \
-            { \
-                __debugbreak(); \
-            } \
-        } \
-    } while (false) \
-
-using Microsoft::WRL::ComPtr;
+using namespace Microsoft;
+using namespace Microsoft::WRL;
 
 struct Rhi
 {
     ComPtr<IDXGIFactory6> m_factory;
+    ComPtr<IDXGIAdapter4> m_adapter;
+    ComPtr<ID3D12Device5> m_device;
+    std::string m_adapterName;
 
     bool m_debugLayerEnabled{false};
     bool m_gpuValidationEnabled{false};

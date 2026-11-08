@@ -4,6 +4,8 @@ set(SPONZA_SOURCES
     app/app.cpp
     rhi/rhi.h
     rhi/rhi.cpp
+    rhi/rhiutils.h
+    rhi/rhiutils.cpp
     system/log.h
     system/log.cpp)
 
