@@ -1,5 +1,7 @@
 set(SPONZA_SOURCES
-    main.cpp)
+    main.cpp
+    app.h
+    app.cpp)
 
 add_executable(sponza_dx12 WIN32 ${SPONZA_SOURCES})
 

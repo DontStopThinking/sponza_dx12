@@ -1,13 +1,25 @@
 #include <cassert>
+#include <cstdlib>
 #include <print>
+
 #include <windows.h>
+
+#include "app.h"
+
+static App g_app = {};
 
 static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 {
     LRESULT result = 0;
 
-    switch (message)
+    if (appHandleMessage(g_app, windowHandle, message, wParam, lParam, result))
     {
+        // Nothing to do, the app has handled the Windows messages
+    }
+    else
+    {
+        switch (message)
+        {
         case WM_KEYDOWN:
         {
             if (wParam == VK_ESCAPE)
@@ -18,6 +30,8 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
 
         } break;
 
+        case WM_QUIT:
+        case WM_CLOSE:
         case WM_DESTROY:
         {
             PostQuitMessage(0);
@@ -28,6 +42,7 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
         {
             result = DefWindowProc(windowHandle, message, wParam, lParam);
         } break;
+        }
     }
 
     return result;
@@ -67,28 +82,45 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     ShowWindow(windowHandle, showCommand);
 
-    bool running = true;
-
-    while (running)
+    int exitCode = EXIT_SUCCESS;
+    if (appInit(g_app, windowHandle))
     {
-        MSG message = {};
-        while (PeekMessage(&message, nullptr, 0, 0, PM_REMOVE))
-        {
-            if (message.message == WM_QUIT)
-            {
-                running = false;
-            }
-            TranslateMessage(&message);
-            DispatchMessage(&message);
-        }
+        bool running = true;
 
-        if (!running)
+        while (running)
         {
-            break;
+            MSG message = {};
+            while (PeekMessage(&message, nullptr, 0, 0, PM_REMOVE))
+            {
+                if (message.message == WM_QUIT)
+                {
+                    running = false;
+                }
+                TranslateMessage(&message);
+                DispatchMessage(&message);
+            }
+
+            if (!running)
+            {
+                break;
+            }
+
+            if (g_app.m_minimized)
+            {
+                Sleep(16); // Nothing to present, don't update
+                continue;
+            }
+            appFrame(g_app);
         }
     }
+    else
+    {
+        // TODO(sbalse): logging
+        exitCode = EXIT_FAILURE;
+    }
 
+    appShutdown(g_app);
     DestroyWindow(windowHandle);
 
-    return 0;
+    return exitCode;
 }
