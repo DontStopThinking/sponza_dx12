@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstdio>
 #include <cstdlib>
 #include <print>
 
@@ -8,6 +9,22 @@
 #include "system/log.h"
 
 static App g_app = {};
+
+static void createDebugConsole()
+{
+    // Reuse the console if launched from cmd, otherwise create a new one
+    if (!AttachConsole(ATTACH_PARENT_PROCESS))
+    {
+        AllocConsole();
+    }
+
+    FILE* fp = nullptr;
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONOUT$", "w", stderr);
+    // freopen_s(&fp, "CONIN$", "r", stderr); // NOTE(sbalse): Probably not ever using the debug console for input
+
+    SetConsoleTitle(TEXT("Debug Console"));
+}
 
 static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -51,6 +68,8 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 {
+    createDebugConsole();
+
     logInfo("Starting sponza DX12 renderer...");
 
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -124,6 +143,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     appShutdown(g_app);
     DestroyWindow(windowHandle);
+    FreeConsole();
 
     return exitCode;
 }

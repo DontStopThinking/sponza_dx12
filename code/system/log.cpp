@@ -1,5 +1,7 @@
 #include "system/log.h"
 
+#include <print>
+
 #include <windows.h>
 
 static const char* logLevelName(Log_Level level)
@@ -26,6 +28,7 @@ void logMessage(Log_Level level, const std::string& message)
         logLevelName(level),
         message);
     OutputDebugStringA(line.c_str());
+    std::print("{}", line);
 
     // TODO(sbalse): File logger
 }
