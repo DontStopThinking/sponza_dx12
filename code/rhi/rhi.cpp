@@ -106,6 +106,50 @@ static void createDevice()
         static_cast<uint32_t>(options7.MeshShaderTier) / 10);
 }
 
+static void CALLBACK infoQueueDebugMessageCallback(
+    D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY severity,
+    D3D12_MESSAGE_ID,
+    LPCSTR description,
+    void*)
+{
+    if (severity == D3D12_MESSAGE_SEVERITY_CORRUPTION || severity == D3D12_MESSAGE_SEVERITY_ERROR)
+    {
+        g_rhi.m_infoQueueErrorCount.fetch_add(1, std::memory_order_relaxed);
+        logError("RHI: [Info queue] {}", description);
+
+    }
+    else if (severity == D3D12_MESSAGE_SEVERITY_WARNING)
+    {
+        g_rhi.m_infoQueueWarningCount.fetch_add(1, std::memory_order_relaxed);
+        logWarning("RHI: [Info queue] {}", description);
+    }
+}
+
+static void configureInfoQueue()
+{
+    // NOTE(sbalse): The info queue gives us more debug messages. Probably useful I think.
+    ComPtr<ID3D12InfoQueue> infoQueue;
+    if (SUCCEEDED(g_rhi.m_device.As(&infoQueue)) && IsDebuggerPresent())
+    {
+        infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+        infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+    }
+
+    ComPtr<ID3D12InfoQueue1> infoQueue1;
+    if (SUCCEEDED(g_rhi.m_device.As(&infoQueue1)))
+    {
+        infoQueue1->RegisterMessageCallback(
+            infoQueueDebugMessageCallback,
+            D3D12_MESSAGE_CALLBACK_FLAG_NONE,
+            nullptr,
+            &g_rhi.m_messageCallbackCookie);
+    }
+    else
+    {
+        logWarning("RHI: ID3d12InfoQueue1 unavailable");
+    }
+}
+
 void rhiInit(const Rhi_Init_Options& options)
 {
     UINT factoryFlags = 0;
@@ -120,6 +164,10 @@ void rhiInit(const Rhi_Init_Options& options)
     VERIFY_HR(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&g_rhi.m_factory)));
 
     createDevice();
+    if (g_rhi.m_debugLayerEnabled)
+    {
+        configureInfoQueue();
+    }
 }
 
 void rhiShutdown()

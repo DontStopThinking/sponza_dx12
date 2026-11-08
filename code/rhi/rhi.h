@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <string>
 
 #include <d3d12.h>
@@ -18,6 +19,10 @@ struct Rhi
 
     bool m_debugLayerEnabled{false};
     bool m_gpuValidationEnabled{false};
+
+    std::atomic<uint32_t> m_infoQueueErrorCount{0};
+    std::atomic<uint32_t> m_infoQueueWarningCount{0};
+    DWORD m_messageCallbackCookie{0};
 };
 
 extern Rhi g_rhi;
