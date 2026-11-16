@@ -7,7 +7,9 @@ set(SPONZA_SOURCES
     rhi/rhiutils.h
     rhi/rhiutils.cpp
     system/log.h
-    system/log.cpp)
+    system/log.cpp
+    system/system.h
+    system/system.cpp)
 
 add_executable(sponza_dx12 WIN32 ${SPONZA_SOURCES})
 
@@ -18,13 +20,14 @@ target_include_directories(sponza_dx12 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_compile_definitions(sponza_dx12 PRIVATE
     WIN32_LEAN_AND_MEAN
+    NOMINMAX
     # TODO(sbalse): Do we need these UNICODE defines? Can we directly use either the A or W variants of Win32 functions everywhere?
     UNICODE
     _UNICODE
     $<$<CONFIG:Debug>:SPONZA_DEBUG=1>)
 
 target_link_libraries(sponza_dx12 PRIVATE
-    d3d12 dxgi)
+    d3d12 dxgi dxguid)
 
 set_target_properties(sponza_dx12 PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${SPONZA_BIN_DIR}"

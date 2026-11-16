@@ -9,6 +9,7 @@ enum class Log_Level
     Info,
     Warning,
     Error,
+    Fatal,
 };
 
 struct Log_Line
@@ -35,4 +36,10 @@ template <typename... Args>
 void logError(std::format_string<Args...> fmt, Args&&... args)
 {
     logMessage(Log_Level::Error, std::format(fmt, std::forward<Args>(args)...));
+}
+
+template <typename... Args>
+void logFatal(std::format_string<Args...> fmt, Args&&... args)
+{
+    logMessage(Log_Level::Fatal, std::format(fmt, std::forward<Args>(args)...));
 }

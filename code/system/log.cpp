@@ -11,6 +11,7 @@ static const char* logLevelName(Log_Level level)
         case Log_Level::Info: return "INFO";
         case Log_Level::Warning: return "WARNING";
         case Log_Level::Error: return "ERROR";
+        case Log_Level::Fatal: return "FATAL";
         default: return "UNKNOWN";
     }
 }

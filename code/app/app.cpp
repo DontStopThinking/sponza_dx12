@@ -12,7 +12,8 @@ bool appInit(App& app, HWND windowHandle)
     Rhi_Init_Options rhiInitOptions = {};
 #if defined(SPONZA_DEBUG)
     rhiInitOptions.m_debugLayer = true;
-    rhiInitOptions.m_gpuValidation = true;
+    // NOTE(sbalse): Disabling GPU-based validation until we have a need for it, since it slows down startup
+    // rhiInitOptions.m_gpuValidation = true;
 #endif // SPONZA_DEBUG
     rhiInit(rhiInitOptions);
 
