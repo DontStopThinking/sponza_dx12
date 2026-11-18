@@ -1,43 +1,13 @@
 #include <cassert>
-#include <cstdio>
-#include <cstdlib>
 #include <print>
-
 #include <windows.h>
-
-#include "app/app.h"
-#include "system/log.h"
-
-static App g_app = {};
-
-static void createDebugConsole()
-{
-    // Reuse the console if launched from cmd, otherwise create a new one
-    if (!AttachConsole(ATTACH_PARENT_PROCESS))
-    {
-        AllocConsole();
-    }
-
-    FILE* fp = nullptr;
-    freopen_s(&fp, "CONOUT$", "w", stdout);
-    freopen_s(&fp, "CONOUT$", "w", stderr);
-    // freopen_s(&fp, "CONIN$", "r", stderr); // NOTE(sbalse): Probably not ever using the debug console for input
-
-    SetConsoleTitle(TEXT("Debug Console"));
-}
 
 static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 {
     LRESULT result = 0;
 
-    if (appHandleMessage(g_app, windowHandle, message, wParam, lParam, result))
+    switch (message)
     {
-        // Nothing to do, the app has handled the Windows messages
-    }
-    else
-    {
-        switch (message)
-        {
         case WM_KEYDOWN:
         {
             if (wParam == VK_ESCAPE)
@@ -48,8 +18,6 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
 
         } break;
 
-        case WM_QUIT:
-        case WM_CLOSE:
         case WM_DESTROY:
         {
             PostQuitMessage(0);
@@ -60,7 +28,6 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
         {
             result = DefWindowProc(windowHandle, message, wParam, lParam);
         } break;
-        }
     }
 
     return result;
@@ -68,10 +35,6 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 {
-    createDebugConsole();
-
-    logInfo("Starting sponza DX12 renderer...");
-
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
     WNDCLASSEX windowClass = {};
@@ -104,46 +67,28 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     ShowWindow(windowHandle, showCommand);
 
-    int exitCode = EXIT_SUCCESS;
-    if (appInit(g_app, windowHandle))
+    bool running = true;
+
+    while (running)
     {
-        bool running = true;
-
-        while (running)
+        MSG message = {};
+        while (PeekMessage(&message, nullptr, 0, 0, PM_REMOVE))
         {
-            MSG message = {};
-            while (PeekMessage(&message, nullptr, 0, 0, PM_REMOVE))
+            if (message.message == WM_QUIT)
             {
-                if (message.message == WM_QUIT)
-                {
-                    running = false;
-                }
-                TranslateMessage(&message);
-                DispatchMessage(&message);
+                running = false;
             }
+            TranslateMessage(&message);
+            DispatchMessage(&message);
+        }
 
-            if (!running)
-            {
-                break;
-            }
-
-            if (g_app.m_minimized)
-            {
-                Sleep(16); // Nothing to present, don't update
-                continue;
-            }
-            appFrame(g_app);
+        if (!running)
+        {
+            break;
         }
     }
-    else
-    {
-        // TODO(sbalse): logging
-        exitCode = EXIT_FAILURE;
-    }
 
-    appShutdown(g_app);
     DestroyWindow(windowHandle);
-    FreeConsole();
 
-    return exitCode;
+    return 0;
 }
