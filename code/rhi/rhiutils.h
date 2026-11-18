@@ -3,22 +3,28 @@
 #include <string>
 #include <string_view>
 
+#include <d3d12.h>
 #include <windows.h>
 
 #include "system/log.h"
+
+#include <wrl/client.h>
+
+template <typename T>
+using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 #define VERIFY_HR(expr) \
     do \
     { \
         const HRESULT hr_ = (expr); \
-            if (FAILED(hr_)) \
+        if (FAILED(hr_)) \
+        { \
+            logError("HRESULT: 0x{:08X}", static_cast<uint32_t>(hr_)); \
+            if (IsDebuggerPresent()) \
             { \
-                logError("HRESULT: 0x{:08X}", static_cast<uint32_t>(hr_)); \
-                    if (IsDebuggerPresent()) \
-                    { \
-                        __debugbreak(); \
-                    } \
+                __debugbreak(); \
             } \
+        } \
     } while (false) \
 
 [[noreturn]] void fatalError(const char* expression, const char* file, int line, const char* message);
@@ -32,4 +38,11 @@
         } \
     } while (false) \
 
+
 std::string toUtf8(std::wstring_view text);
+std::wstring toWide(std::string_view text);
+
+inline void setName(ID3D12Object* object, std::string_view name)
+{
+    object->SetName(toWide(name).c_str());
+}

@@ -150,6 +150,18 @@ static void configureInfoQueue()
     }
 }
 
+static void createCommandQueue()
+{
+    // Command queue decides which order the command lists execute
+    D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+    queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+    queueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+    queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+
+    VERIFY_HR(g_rhi.m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&g_rhi.m_commandQueue)));
+    setName(g_rhi.m_commandQueue.Get(), "Direct Queue");
+}
+
 void rhiInit(const Rhi_Init_Options& options)
 {
     UINT factoryFlags = 0;
@@ -164,10 +176,13 @@ void rhiInit(const Rhi_Init_Options& options)
     VERIFY_HR(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&g_rhi.m_factory)));
 
     createDevice();
+
     if (g_rhi.m_debugLayerEnabled)
     {
         configureInfoQueue();
     }
+
+    createCommandQueue();
 }
 
 void rhiShutdown()
@@ -181,6 +196,7 @@ void rhiShutdown()
         }
     }
 
+    g_rhi.m_commandQueue.Reset();
     g_rhi.m_factory.Reset();
     g_rhi.m_adapter.Reset();
     g_rhi.m_device.Reset();

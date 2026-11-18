@@ -21,12 +21,22 @@ std::string toUtf8(std::wstring_view text)
     const int len = static_cast<int>(text.size());
     const int count = WideCharToMultiByte(CP_UTF8, 0, text.data(), len, nullptr, 0, nullptr, nullptr);
 
-    if (count <= 0)
+    std::string result(static_cast<size_t>(count), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, text.data(), len, result.data(), count, nullptr, nullptr);
+    return result;
+}
+
+std::wstring toWide(std::string_view text)
+{
+    if (text.empty())
     {
         return {};
     }
 
-    std::string result(static_cast<size_t>(count), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, text.data(), len, result.data(), count, nullptr, nullptr);
+    const int len = static_cast<int>(text.size());
+    const int count = MultiByteToWideChar(CP_UTF8, 0, text.data(), len, nullptr, 0);
+
+    std::wstring result(static_cast<size_t>(count), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, text.data(), len, result.data(), count);
     return result;
 }
