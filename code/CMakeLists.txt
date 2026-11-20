@@ -1,5 +1,10 @@
 set(SPONZA_SOURCES
-    main.cpp)
+    main.cpp
+    system/d3dutils.h
+    system/d3dutils.cpp
+    system/log.h
+    system/log.cpp
+)
 
 add_executable(sponza_dx12 WIN32 ${SPONZA_SOURCES})
 
@@ -13,6 +18,9 @@ target_compile_definitions(sponza_dx12 PRIVATE
     # TODO(sbalse): Do we need these UNICODE defines? Can we directly use either the A or W variants of Win32 functions everywhere?
     UNICODE
     _UNICODE)
+
+target_link_libraries(sponza_dx12 PRIVATE
+    d3d12 dxgi dxguid)
 
 set_target_properties(sponza_dx12 PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${SPONZA_BIN_DIR}"
