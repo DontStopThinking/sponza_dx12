@@ -72,7 +72,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     windowClass.lpszClassName = TEXT("SponzaD3D12Window");
     RegisterClassEx(&windowClass);
 
-    RECT rect{ 0, 0, 1600, 900 };
+    constexpr int WINDOW_WIDTH = 1600;
+    constexpr int WINDOW_HEIGHT = 900;
+
+    RECT rect{ 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
     AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
 
     HWND windowHandle = CreateWindowEx(
@@ -117,6 +120,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     checkHr(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue)));
+    setName(commandQueue.Get(), "Direct Command Queue");
 
     // NOTE(sbalse): Command allocator is used to allocate memory on the GPU for commands
     ComPtr<ID3D12CommandAllocator> commandAllocator;
@@ -131,7 +135,70 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         commandAllocator.Get(),
         nullptr,
         IID_PPV_ARGS(&commandList)));
-    checkHr(commandList->Close());
+    setName(commandList.Get(), "Direct Command List");
+    checkHr(commandList->Close()); // Start out closed
+
+    constexpr int BACK_BUFFER_COUNT = 2;
+
+    // Create swap chain
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+    swapChainDesc.Width = WINDOW_WIDTH;
+    swapChainDesc.Height = WINDOW_HEIGHT;
+    swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    swapChainDesc.Stereo = FALSE;
+    swapChainDesc.SampleDesc.Count = 1;
+    swapChainDesc.SampleDesc.Quality = 0;
+    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    swapChainDesc.BufferCount = BACK_BUFFER_COUNT;
+    swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
+    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+    swapChainDesc.SampleDesc.Count = 1;
+    swapChainDesc.Flags = 0;
+
+    ComPtr<IDXGISwapChain1> swapChain1 = nullptr;
+    checkHr(factory->CreateSwapChainForHwnd(
+        commandQueue.Get(), windowHandle, &swapChainDesc, nullptr, nullptr, &swapChain1));
+
+    checkHr(factory->MakeWindowAssociation(windowHandle, DXGI_MWA_NO_ALT_ENTER));
+
+    // Upgrade to IDXGISwapChain3
+    ComPtr<IDXGISwapChain3> swapChain;
+    checkHr(swapChain1.As(&swapChain));
+
+    // NOTE(sbalse): Descriptor Heap to store Render Target Views.
+    // A descriptor is a block of data that tells the GPU how to interpret resource memory. A descriptor heap
+    // is an array of descriptors.
+    ComPtr<ID3D12DescriptorHeap> rtvHeap;
+    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+    // NOTE(sbalse): We have the same no. of RTVs as the number of back buffers in our swapchain.
+    rtvHeapDesc.NumDescriptors = BACK_BUFFER_COUNT;
+    rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    checkHr(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap)));
+
+    ComPtr<ID3D12Resource> renderTargets[2];
+
+    const UINT rtvHandleIncrementSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+    {
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
+        for (UINT i = 0; i < BACK_BUFFER_COUNT; i++)
+        {
+            checkHr(swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i])));
+
+            device->CreateRenderTargetView(renderTargets[i].Get(), nullptr, rtvHandle);
+            rtvHandle.ptr += rtvHandleIncrementSize;
+        }
+    }
+
+    // NOTE(sbalse): Fence is used to synchronize the CPU with the GPU, so they don't touch the same memory at
+    // the same time.
+    ComPtr<ID3D12Fence> fence;
+    UINT64 fenceValue = 0;
+    checkHr(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
+
+    // NOTE(sbalse): Win32 Events are used as the link between CPU fence and GPU fence
+    HANDLE fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 
     bool running = true;
 

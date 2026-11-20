@@ -11,6 +11,7 @@
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 
+// TODO(sbalse): This should be a macro maybe so that the debugger breaks at the call site instead of inside this.
 [[noreturn]] void fatalError(
     std::string_view message, std::source_location location = std::source_location::current());
 
