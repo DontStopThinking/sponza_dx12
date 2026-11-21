@@ -34,6 +34,7 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
     {
         case WM_KEYDOWN:
         {
+            // ESCAPE to exit
             if (wParam == VK_ESCAPE)
             {
                 PostQuitMessage(0);
