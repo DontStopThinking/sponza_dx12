@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include <d3d12.h>
+#include <d3dcompiler.h>
 #include <dxgi1_6.h>
 #include <windows.h>
 
@@ -242,6 +243,62 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         signatureBlob->GetBufferSize(),
         IID_PPV_ARGS(&rootSignature)));
     setName(rootSignature.Get(), "Root Signature");
+
+    // Compile shaders
+    logInfo("Compiling shaders...");
+    ComPtr<ID3DBlob> vertexShader;
+    {
+        ComPtr<ID3DBlob> errors;
+        const HRESULT hr = D3DCompileFromFile(
+            L"shaders/shader.hlsl",
+            nullptr,
+            nullptr,
+            "VSMain",
+            "vs_5_0",
+            0,
+            0,
+            &vertexShader,
+            &errors);
+        if (FAILED(hr))
+        {
+            const std::string message = errors
+                ? std::string(static_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize())
+                : "";
+            fatalError(
+                std::format(
+                    "Vertex shader compilation failed (HRESULT 0x{:08X}): {}",
+                    static_cast<uint32_t>(hr),
+                    message));
+        }
+    }
+
+    ComPtr<ID3DBlob> pixelShader;
+    {
+        ComPtr<ID3DBlob> errors;
+        const HRESULT hr = D3DCompileFromFile(
+            L"shaders/shader.hlsl",
+            nullptr,
+            nullptr,
+            "PSMain",
+            "ps_5_0",
+            0,
+            0,
+            &pixelShader,
+            &errors);
+        if (FAILED(hr))
+        {
+            const std::string message = errors
+                ? std::string(static_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize())
+                : "";
+            fatalError(
+                std::format(
+                    "Pixel shader compilation failed (HRESULT 0x{:08X}): {}",
+                    static_cast<uint32_t>(hr),
+                    message));
+        }
+    }
+
+    logInfo("Shaders compiled successfully!");
 
     bool running = true;
 
