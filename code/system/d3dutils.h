@@ -32,3 +32,5 @@ inline void setName(ID3D12Object* object, std::string_view name)
 {
     object->SetName(toWide(name).c_str());
 }
+
+#define ARRAY_COUNT(a) (sizeof(a) / sizeof((a)[0]))

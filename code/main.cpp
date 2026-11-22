@@ -201,6 +201,48 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     // NOTE(sbalse): Win32 Events are used as the link between CPU fence and GPU fence
     HANDLE fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 
+    // NOTE(sbalse): A root signature determines the type of data shaders should expect. A root parameter is
+    // one entry in the root signature.
+    // For our rotating triangle, we need only a single root parameter constant for our angle.
+    D3D12_ROOT_PARAMETER rootParameters[1] = {};
+    rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    rootParameters[0].Constants.Num32BitValues = 1;
+    rootParameters[0].Constants.ShaderRegister = 0;
+    rootParameters[0].Constants.RegisterSpace = 0;
+    rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+    rootSignatureDesc.NumParameters = ARRAY_COUNT(rootParameters);
+    rootSignatureDesc.pParameters = rootParameters;
+    rootSignatureDesc.NumStaticSamplers = 0;
+    rootSignatureDesc.pStaticSamplers = nullptr;
+    rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    ComPtr<ID3DBlob> signatureBlob;
+    {
+        ComPtr<ID3DBlob> errorBlob;
+        const HRESULT hr = D3D12SerializeRootSignature(
+            &rootSignatureDesc,
+            D3D_ROOT_SIGNATURE_VERSION_1_0,
+            &signatureBlob,
+            &errorBlob);
+        if (FAILED(hr))
+        {
+            const std::string message = errorBlob
+                ? std::string(static_cast<const char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize())
+                : "";
+            fatalError(std::format("Root signature serialization failed: {}", message));
+        }
+    }
+
+    ComPtr<ID3D12RootSignature> rootSignature;
+    checkHr(device->CreateRootSignature(
+        0,
+        signatureBlob->GetBufferPointer(),
+        signatureBlob->GetBufferSize(),
+        IID_PPV_ARGS(&rootSignature)));
+    setName(rootSignature.Get(), "Root Signature");
+
     bool running = true;
 
     while (running)
