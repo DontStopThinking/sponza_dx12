@@ -11,6 +11,70 @@
 #include "system/d3dutils.h"
 #include "system/log.h"
 
+static void setBlendState(D3D12_BLEND_DESC& blendDesc)
+{
+    blendDesc = {};
+
+    blendDesc.AlphaToCoverageEnable = FALSE;
+    blendDesc.IndependentBlendEnable = FALSE;
+
+    D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {};
+    defaultRenderTargetBlendDesc.BlendEnable = FALSE;
+    defaultRenderTargetBlendDesc.LogicOpEnable = FALSE;
+    defaultRenderTargetBlendDesc.SrcBlend = D3D12_BLEND_ONE;
+    defaultRenderTargetBlendDesc.DestBlend = D3D12_BLEND_ZERO;
+    defaultRenderTargetBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+    defaultRenderTargetBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    defaultRenderTargetBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    defaultRenderTargetBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    defaultRenderTargetBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    defaultRenderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+    for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; i++)
+    {
+        blendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
+    }
+}
+
+static void setRasterizerState(D3D12_RASTERIZER_DESC& rasterizerDesc)
+{
+    rasterizerDesc = {};
+
+    rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+    rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+    rasterizerDesc.FrontCounterClockwise = FALSE;
+    rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+    rasterizerDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+    rasterizerDesc.DepthClipEnable = TRUE;
+    rasterizerDesc.MultisampleEnable = FALSE;
+    rasterizerDesc.AntialiasedLineEnable = FALSE;
+    rasterizerDesc.ForcedSampleCount = 0;
+    rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+}
+
+static void setDepthStencilState(D3D12_DEPTH_STENCIL_DESC& depthStencilDesc)
+{
+    depthStencilDesc = {};
+
+    depthStencilDesc.DepthEnable = FALSE;
+    depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+    depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
+
+    depthStencilDesc.StencilEnable = FALSE;
+    depthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+    depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+
+    depthStencilDesc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+    depthStencilDesc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+    depthStencilDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+    depthStencilDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+
+    depthStencilDesc.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+    depthStencilDesc.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+    depthStencilDesc.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+    depthStencilDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+}
+
 static void createDebugConsole()
 {
     // Reuse the console if launched from cmd, otherwise create a new one
@@ -299,6 +363,29 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     }
 
     logInfo("Shaders compiled successfully!");
+
+    // Pipline state
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineStateDesc = {};
+    pipelineStateDesc.pRootSignature = rootSignature.Get();
+    pipelineStateDesc.VS.pShaderBytecode = vertexShader->GetBufferPointer();
+    pipelineStateDesc.VS.BytecodeLength = vertexShader->GetBufferSize();
+    pipelineStateDesc.PS.pShaderBytecode = pixelShader->GetBufferPointer();
+    pipelineStateDesc.PS.BytecodeLength = pixelShader->GetBufferSize();
+    pipelineStateDesc.SampleMask = UINT_MAX;
+    pipelineStateDesc.InputLayout.pInputElementDescs = nullptr;
+    pipelineStateDesc.InputLayout.NumElements = 0;
+    pipelineStateDesc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+    pipelineStateDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    pipelineStateDesc.NumRenderTargets = 1;
+    pipelineStateDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    pipelineStateDesc.SampleDesc.Count = 1;
+    pipelineStateDesc.SampleDesc.Quality = 0;
+    setBlendState(pipelineStateDesc.BlendState);
+    setRasterizerState(pipelineStateDesc.RasterizerState);
+    setDepthStencilState(pipelineStateDesc.DepthStencilState);
+
+    ComPtr<ID3D12PipelineState> pipelineState;
+    checkHr(device->CreateGraphicsPipelineState(&pipelineStateDesc, IID_PPV_ARGS(&pipelineState)));
 
     bool running = true;
 
