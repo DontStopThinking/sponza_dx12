@@ -389,6 +389,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     bool running = true;
 
+    uint32_t triangleAngle = 0;
+
     while (running)
     {
         MSG message = {};
@@ -406,6 +408,75 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         {
             break;
         }
+
+        // Record commands to draw a triangle
+        checkHr(commandAllocator->Reset());
+        checkHr(commandList->Reset(commandAllocator.Get(), nullptr));
+
+        UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
+
+        {
+            D3D12_RESOURCE_BARRIER barrier = {};
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier.Transition.pResource = renderTargets[backBufferIndex].Get();
+            barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+            barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            commandList->ResourceBarrier(1, &barrier);
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
+        rtvHandle.ptr += backBufferIndex * rtvHandleIncrementSize;
+
+        // Clear the render target
+        constexpr float CLEAR_COLOR[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+        commandList->ClearRenderTargetView(rtvHandle, CLEAR_COLOR, 0, nullptr);
+
+        // Set viewport and scissor
+        D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT), 0.0f, 1.0f };
+        D3D12_RECT scissorRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+        commandList->RSSetViewports(1, &viewport);
+        commandList->RSSetScissorRects(1, &scissorRect);
+
+        commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+        commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        commandList->SetGraphicsRootSignature(rootSignature.Get());
+        commandList->SetPipelineState(pipelineState.Get());
+
+        // Draw the triangle
+        commandList->SetGraphicsRoot32BitConstant(0, triangleAngle, 0);
+        commandList->DrawInstanced(3, 1, 0, 0);
+
+        {
+            D3D12_RESOURCE_BARRIER barrier = {};
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier.Transition.pResource = renderTargets[backBufferIndex].Get();
+            barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+            barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            commandList->ResourceBarrier(1, &barrier);
+        }
+
+        checkHr(commandList->Close());
+
+        ID3D12CommandList* commandLists[] = { commandList.Get() };
+        commandQueue->ExecuteCommandLists(1, commandLists);
+
+        checkHr(swapChain->Present(1, 0));
+
+        // Wait on the CPU for the GPU frame to finish
+        const UINT64 currentFenceValue = ++fenceValue;
+        checkHr(commandQueue->Signal(fence.Get(), currentFenceValue));
+
+        if (fence->GetCompletedValue() < currentFenceValue)
+        {
+            checkHr(fence->SetEventOnCompletion(currentFenceValue, fenceEvent));
+            WaitForSingleObject(fenceEvent, INFINITE);
+        }
+
+        triangleAngle++;
     }
 
     DestroyWindow(windowHandle);

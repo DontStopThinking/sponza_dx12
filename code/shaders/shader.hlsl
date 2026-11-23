@@ -38,7 +38,7 @@ PSInput VSMain(unsigned int index : SV_VertexID)
 
     float2 rotatedPos;
     rotatedPos.x = inputPos.x * cosTheta - inputPos.y * sinTheta;
-    rotatedPos.y = inputPos.x * sinTheta - inputPos.y * cosTheta;
+    rotatedPos.y = inputPos.x * sinTheta + inputPos.y * cosTheta;
 
     result.position = float4(rotatedPos.x, rotatedPos.y, 0.0f, 1.0f);
     result.color = colors[index];
