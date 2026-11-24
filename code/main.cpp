@@ -516,14 +516,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         checkHr(commandList->Close());
 
         ID3D12CommandList* commandLists[] = { commandList.Get() };
+        // NOTE(sbalse): This line actually sends the current frame's commands to the GPU queue
         commandQueue->ExecuteCommandLists(1, commandLists);
 
         checkHr(swapChain->Present(1, 0));
 
         // Wait on the CPU for the GPU frame to finish
         const UINT64 currentFenceValue = ++fenceValue;
+        // NOTE(sbalse): Add one more command to the end of the queue to write `currentFenceValue` into the fence
         checkHr(commandQueue->Signal(fence.Get(), currentFenceValue));
 
+        // NOTE(sbalse): This immediately checks if the GPU's fence value is less than the CPU's. If it is, then
+        // that means the GPU is behind the CPU and so we put the CPU to sleep.
         if (fence->GetCompletedValue() < currentFenceValue)
         {
             checkHr(fence->SetEventOnCompletion(currentFenceValue, fenceEvent));
