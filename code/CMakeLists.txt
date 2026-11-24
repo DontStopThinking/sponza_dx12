@@ -38,7 +38,9 @@ target_compile_definitions(sponza_dx12 PRIVATE
     WIN32_LEAN_AND_MEAN
     # TODO(sbalse): Do we need these UNICODE defines? Can we directly use either the A or W variants of Win32 functions everywhere?
     UNICODE
-    _UNICODE)
+    _UNICODE
+    $<$<CONFIG:debug>:SPONZA_DEBUG>
+    $<$<CONFIG:release>:SPONZA_RELEASE>)
 
 target_link_libraries(sponza_dx12 PRIVATE
     d3d12 dxgi dxguid d3dcompiler)

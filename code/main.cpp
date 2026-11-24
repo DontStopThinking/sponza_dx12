@@ -11,6 +11,22 @@
 #include "system/d3dutils.h"
 #include "system/log.h"
 
+static void onDebugLayerMessage(D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID, LPCSTR description, void*)
+{
+    if (severity == D3D12_MESSAGE_SEVERITY_CORRUPTION || severity == D3D12_MESSAGE_SEVERITY_ERROR)
+    {
+        logError("[D3D12] {}", description);
+    }
+    else if (severity == D3D12_MESSAGE_SEVERITY_WARNING)
+    {
+        logWarning("[D3D12] {}", description);
+    }
+    else
+    {
+        logInfo("[D3D12] {}", description);
+    }
+}
+
 static void setBlendState(D3D12_BLEND_DESC& blendDesc)
 {
     blendDesc = {};
@@ -162,10 +178,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     ShowWindow(windowHandle, showCommand);
 
-    // TODO(sbalse): Create D3D12 debug layer in debug builds
-
     ComPtr<IDXGIFactory6> factory;
-    const UINT factoryFlags = 0; // TODO(sbalse): Use `DXGI_CREATE_FACTORY_DEBUG` flag in debug builds
+    UINT factoryFlags = 0;
+    SPONZA_DEBUG_ONLY(factoryFlags |= DXGI_CREATE_FACTORY_DEBUG);
     checkHr(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory)));
 
     ComPtr<IDXGIAdapter1> adapter;
@@ -175,10 +190,49 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     checkHr(adapter->GetDesc1(&adapterDesc));
     logInfo("GPU: {} ({} MB video memory)", toUtf8(adapterDesc.Description), adapterDesc.DedicatedVideoMemory / (1024 * 1024));
 
+#if defined(SPONZA_DEBUG)
+    ComPtr<ID3D12Debug1> debug;
+    if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))))
+    {
+        debug->EnableDebugLayer();
+        // debug->SetEnableGPUBasedValidation(TRUE); // NOTE(sbalse): Commenting this out since it increases startup time a bit
+        logInfo("D3D12 debug layer has been enabled");
+    }
+    else
+    {
+        logWarning("D3D12 debug layer is not available");
+    }
+#endif // SPONZA_DEBUG
+
     // NOTE(sbalse): The Device is a virtual representation of the GPU
     ComPtr<ID3D12Device> device;
     checkHr(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device)));
     setName(device.Get(), "Device");
+
+    SPONZA_DEBUG_ONLY(DWORD debugCallbackCookie = 0);
+
+#if defined(SPONZA_DEBUG)
+    // NOTE(sbalse): Route debug layer messages to our logs and break in the debugger on errors
+    ComPtr<ID3D12InfoQueue1> infoQueue;
+    if (SUCCEEDED(device.As(&infoQueue)))
+    {
+        infoQueue->RegisterMessageCallback(
+            onDebugLayerMessage,
+            D3D12_MESSAGE_CALLBACK_FLAG_NONE,
+            nullptr,
+            &debugCallbackCookie);
+
+        if (IsDebuggerPresent())
+        {
+            infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+            infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+        }
+    }
+    else
+    {
+        logInfo("ID3D12InfoQueue1 is not available; debug layer messages will only appear in the VS output window");
+    }
+#endif // SPONZA_DEBUG
 
     // NOTE(sbalse): The command queue decides which order the command lists should execute in
     ComPtr<ID3D12CommandQueue> commandQueue;
@@ -480,6 +534,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     }
 
     DestroyWindow(windowHandle);
+
+#if defined(SPONZA_DEBUG)
+    if (debugCallbackCookie != 0)
+    {
+        infoQueue->UnregisterMessageCallback(debugCallbackCookie);
+    }
+
+    ComPtr<ID3D12DebugDevice> debugDevice;
+    if (SUCCEEDED(device.As(&debugDevice)))
+    {
+        debugDevice->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL);
+    }
+#endif // SPONZA_DEBUG
 
     return 0;
 }

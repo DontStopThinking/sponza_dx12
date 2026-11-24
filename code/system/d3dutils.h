@@ -8,6 +8,12 @@
 #include <d3d12.h>
 #include <WRL/client.h>
 
+#if defined(SPONZA_DEBUG)
+#define SPONZA_DEBUG_ONLY(...) __VA_ARGS__
+#else
+#define SPONZA_DEBUG_ONLY(...)
+#endif // SPONZA_DEBUG
+
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 
