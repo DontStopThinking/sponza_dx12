@@ -1,5 +1,9 @@
+#include <bit>
 #include <cassert>
+#include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <numbers>
 #include <print>
 #include <string_view>
 
@@ -448,8 +452,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     bool running = true;
 
-    uint32_t triangleAngle = 0;
+    constexpr float ROTATION_SPEED = 1.0;
+    float triangleAngle = 0;
 
+    auto previousTime = std::chrono::steady_clock::now();
     while (running)
     {
         MSG message = {};
@@ -467,6 +473,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         {
             break;
         }
+
+        const auto now = std::chrono::steady_clock::now();
+        const float frameSeconds = std::chrono::duration<float>(now - previousTime).count();
+        const float deltaSeconds = std::min(frameSeconds, 0.1f);
+        previousTime = now;
 
         // Record commands to draw a triangle
         checkHr(commandAllocator->Reset());
@@ -504,7 +515,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         commandList->SetPipelineState(pipelineState.Get());
 
         // Draw the triangle
-        commandList->SetGraphicsRoot32BitConstant(0, triangleAngle, 0);
+        commandList->SetGraphicsRoot32BitConstant(0, std::bit_cast<UINT>(triangleAngle), 0);
         commandList->DrawInstanced(3, 1, 0, 0);
 
         {
@@ -539,7 +550,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
             WaitForSingleObject(fenceEvent, INFINITE);
         }
 
-        triangleAngle++;
+        triangleAngle += ROTATION_SPEED * deltaSeconds;
+        triangleAngle = std::fmod(triangleAngle, 2.0f * std::numbers::pi_v<float>);
     }
 
     CloseHandle(fenceEvent);

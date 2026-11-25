@@ -36,6 +36,7 @@ target_include_directories(sponza_dx12 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_compile_definitions(sponza_dx12 PRIVATE
     WIN32_LEAN_AND_MEAN
+    NOMINMAX
     # TODO(sbalse): Do we need these UNICODE defines? Can we directly use either the A or W variants of Win32 functions everywhere?
     UNICODE
     _UNICODE

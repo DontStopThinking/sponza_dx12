@@ -6,7 +6,7 @@ struct PSInput
 
 cbuffer cb0 : register(b0)
 {
-    uint angle;
+    float angle; // radians
 }
 
 // Vertex Shader
@@ -31,10 +31,8 @@ PSInput VSMain(unsigned int index : SV_VertexID)
     float2 inputPos = positions[index];
 
     // Compute the rotation matrix
-    float rotationSpeed = -0.01f;
-
-    float cosTheta = cos(angle * rotationSpeed);
-    float sinTheta = sin(angle * rotationSpeed);
+    float cosTheta = cos(angle);
+    float sinTheta = sin(angle);
 
     float2 rotatedPos;
     rotatedPos.x = inputPos.x * cosTheta - inputPos.y * sinTheta;
