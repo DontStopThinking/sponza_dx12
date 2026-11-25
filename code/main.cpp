@@ -15,7 +15,17 @@
 #include "system/d3dutils.h"
 #include "system/log.h"
 
-static void onDebugLayerMessage(D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID, LPCSTR description, void*)
+struct WindowContext
+{
+    UINT m_width{0};
+    UINT m_height{0};
+    bool resizePending{false};
+    bool m_minimized{false};
+};
+static WindowContext g_windowContext = {};
+
+static void onDebugLayerMessage(D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY severity, D3D12_MESSAGE_ID,
+                                LPCSTR description, void*)
 {
     if (severity == D3D12_MESSAGE_SEVERITY_CORRUPTION || severity == D3D12_MESSAGE_SEVERITY_ERROR)
     {
@@ -28,6 +38,20 @@ static void onDebugLayerMessage(D3D12_MESSAGE_CATEGORY, D3D12_MESSAGE_SEVERITY s
     else
     {
         logInfo("[D3D12] {}", description);
+    }
+}
+
+static void createRenderTargetViews(ID3D12Device* device, IDXGISwapChain3* swapChain,
+                                    ID3D12DescriptorHeap* rtvHeap, UINT rtvHandleIncrementSize,
+                                    ComPtr<ID3D12Resource>* renderTargets, UINT backBufferCount)
+{
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
+    for (UINT i = 0; i < backBufferCount; i++)
+    {
+        checkHr(swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i])));
+        device->CreateRenderTargetView(renderTargets[i].Get(), nullptr, rtvHandle);
+        setName(renderTargets[i].Get(), std::format("Back Buffer {}", i));
+        rtvHandle.ptr += rtvHandleIncrementSize;
     }
 }
 
@@ -95,6 +119,18 @@ static void setDepthStencilState(D3D12_DEPTH_STENCIL_DESC& depthStencilDesc)
     depthStencilDesc.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 }
 
+static void waitForGpu(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence, UINT64& fenceValue, HANDLE fenceEvent)
+{
+    const UINT64 valueToWaitFor = ++fenceValue;
+    checkHr(commandQueue->Signal(fence, valueToWaitFor));
+
+    if (fence->GetCompletedValue() < valueToWaitFor)
+    {
+        checkHr(fence->SetEventOnCompletion(valueToWaitFor, fenceEvent));
+        WaitForSingleObject(fenceEvent, INFINITE);
+    }
+}
+
 static void createDebugConsole()
 {
     // Reuse the console if launched from cmd, otherwise create a new one
@@ -128,6 +164,24 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
 
         } break;
 
+        case WM_SIZE:
+        {
+            // NOTE(sbalse): We need to resize the D3D backbuffers, so we don't immediately resize here. We
+            // set some flags and do the resizing before rendering.
+            g_windowContext.m_minimized = (wParam == SIZE_MINIMIZED);
+            if (!g_windowContext.m_minimized)
+            {
+                const UINT width = LOWORD(lParam);
+                const UINT height = HIWORD(lParam);
+                if (width != g_windowContext.m_width || height != g_windowContext.m_height)
+                {
+                    g_windowContext.m_width = width;
+                    g_windowContext.m_height = height;
+                    g_windowContext.resizePending = true;
+                }
+            }
+        } break;
+
         case WM_DESTROY:
         {
             PostQuitMessage(0);
@@ -158,10 +212,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     windowClass.lpszClassName = TEXT("SponzaD3D12Window");
     RegisterClassEx(&windowClass);
 
-    constexpr int WINDOW_WIDTH = 1600;
-    constexpr int WINDOW_HEIGHT = 900;
+    constexpr int INITIAL_WINDOW_WIDTH = 1600;
+    constexpr int INITIAL_WINDOW_HEIGHT = 900;
 
-    RECT rect{ 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+    RECT rect{ 0, 0, INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT };
     AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
 
     HWND windowHandle = CreateWindowEx(
@@ -182,17 +236,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     ShowWindow(windowHandle, showCommand);
 
+    RECT clientRect = {};
+    GetClientRect(windowHandle, &clientRect);
+    g_windowContext.m_width = static_cast<UINT>(clientRect.right - clientRect.left);
+    g_windowContext.m_height = static_cast<UINT>(clientRect.bottom - clientRect.top);
+    g_windowContext.resizePending = false;
+
     ComPtr<IDXGIFactory6> factory;
     UINT factoryFlags = 0;
     SPONZA_DEBUG_ONLY(factoryFlags |= DXGI_CREATE_FACTORY_DEBUG);
     checkHr(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory)));
 
     ComPtr<IDXGIAdapter1> adapter;
-    checkHr(factory->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)));
+    checkHr(factory->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+                                                IID_PPV_ARGS(&adapter)));
 
     DXGI_ADAPTER_DESC1 adapterDesc = {};
     checkHr(adapter->GetDesc1(&adapterDesc));
-    logInfo("GPU: {} ({} MB video memory)", toUtf8(adapterDesc.Description), adapterDesc.DedicatedVideoMemory / (1024 * 1024));
+    logInfo("GPU: {} ({} MB video memory)", toUtf8(adapterDesc.Description),
+            adapterDesc.DedicatedVideoMemory / (1024 * 1024));
 
 #if defined(SPONZA_DEBUG)
     ComPtr<ID3D12Debug1> debug;
@@ -267,15 +329,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     // Create swap chain
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-    swapChainDesc.Width = WINDOW_WIDTH;
-    swapChainDesc.Height = WINDOW_HEIGHT;
+    swapChainDesc.Width = INITIAL_WINDOW_WIDTH;
+    swapChainDesc.Height = INITIAL_WINDOW_HEIGHT;
     swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swapChainDesc.Stereo = FALSE;
     swapChainDesc.SampleDesc.Count = 1;
     swapChainDesc.SampleDesc.Quality = 0;
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.BufferCount = BACK_BUFFER_COUNT;
-    swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
+    swapChainDesc.Scaling = DXGI_SCALING_NONE;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
     swapChainDesc.SampleDesc.Count = 1;
@@ -303,20 +365,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     checkHr(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap)));
     setName(rtvHeap.Get(), "Render Target View Heap");
 
-    ComPtr<ID3D12Resource> renderTargets[2];
+    ComPtr<ID3D12Resource> renderTargets[BACK_BUFFER_COUNT];
 
     const UINT rtvHandleIncrementSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-    {
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
-        for (UINT i = 0; i < BACK_BUFFER_COUNT; i++)
-        {
-            checkHr(swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i])));
-
-            device->CreateRenderTargetView(renderTargets[i].Get(), nullptr, rtvHandle);
-            rtvHandle.ptr += rtvHandleIncrementSize;
-        }
-    }
+    createRenderTargetViews(device.Get(), swapChain.Get(), rtvHeap.Get(), rtvHandleIncrementSize,
+                            renderTargets, BACK_BUFFER_COUNT);
 
     // NOTE(sbalse): Fence is used to synchronize the CPU with the GPU, so they don't touch the same memory at
     // the same time.
@@ -479,6 +533,37 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         const float deltaSeconds = std::min(frameSeconds, 0.1f);
         previousTime = now;
 
+        triangleAngle += ROTATION_SPEED * deltaSeconds;
+        triangleAngle = std::fmod(triangleAngle, 2.0f * std::numbers::pi_v<float>);
+
+        if (g_windowContext.m_minimized)
+        {
+            continue;
+        }
+
+        // NOTE(sbalse): Handle window resizing
+        if (g_windowContext.resizePending)
+        {
+            g_windowContext.resizePending = false;
+
+            // NOTE(sbalse): We must wait for the GPU to be done before resizing the backbuffers.
+            waitForGpu(commandQueue.Get(), fence.Get(), fenceValue, fenceEvent);
+
+            // Release back buffers before resizing
+            for (UINT i = 0; i < BACK_BUFFER_COUNT; i++)
+            {
+                renderTargets[i].Reset();
+            }
+
+            checkHr(swapChain->ResizeBuffers(BACK_BUFFER_COUNT, g_windowContext.m_width,
+                                             g_windowContext.m_height, DXGI_FORMAT_UNKNOWN,
+                                             swapChainDesc.Flags));
+
+            // Recreate the RTVs
+            createRenderTargetViews(device.Get(), swapChain.Get(), rtvHeap.Get(), rtvHandleIncrementSize,
+                                    renderTargets, BACK_BUFFER_COUNT);
+        }
+
         // Record commands to draw a triangle
         checkHr(commandAllocator->Reset());
         checkHr(commandList->Reset(commandAllocator.Get(), nullptr));
@@ -504,8 +589,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         commandList->ClearRenderTargetView(rtvHandle, CLEAR_COLOR, 0, nullptr);
 
         // Set viewport and scissor
-        D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT), 0.0f, 1.0f };
-        D3D12_RECT scissorRect = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
+        const D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(g_windowContext.m_width),
+                                          static_cast<float>(g_windowContext.m_height), 0.0f, 1.0f };
+        const D3D12_RECT scissorRect = { 0, 0, static_cast<LONG>(g_windowContext.m_width),
+                                         static_cast<LONG>(g_windowContext.m_width) };
         commandList->RSSetViewports(1, &viewport);
         commandList->RSSetScissorRects(1, &scissorRect);
 
@@ -543,15 +630,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         checkHr(commandQueue->Signal(fence.Get(), valueToWaitFor));
 
         // NOTE(sbalse): This immediately checks if the GPU's fence value is less than the CPU's. If it is, then
-        // that means the GPU is behind the CPU and so we put the CPU to sleep.
-        if (fence->GetCompletedValue() < valueToWaitFor)
-        {
-            checkHr(fence->SetEventOnCompletion(valueToWaitFor, fenceEvent));
-            WaitForSingleObject(fenceEvent, INFINITE);
-        }
-
-        triangleAngle += ROTATION_SPEED * deltaSeconds;
-        triangleAngle = std::fmod(triangleAngle, 2.0f * std::numbers::pi_v<float>);
+        // that means the GPU is behind the CPU, and so we put the CPU to sleep.
+        waitForGpu(commandQueue.Get(), fence.Get(), fenceValue, fenceEvent);
     }
 
     CloseHandle(fenceEvent);
