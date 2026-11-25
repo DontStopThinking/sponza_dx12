@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include <d3d12.h>
+#include <dxgi.h>
 #include <WRL/client.h>
 
 #if defined(SPONZA_DEBUG)
@@ -31,12 +32,16 @@ inline void checkHr(HRESULT result, std::source_location location = std::source_
 }
 
 std::wstring toWide(std::string_view text);
-
 std::string toUtf8(std::wstring_view text);
 
 inline void setName(ID3D12Object* object, std::string_view name)
 {
     object->SetName(toWide(name).c_str());
+}
+
+inline void setName(IDXGIObject* object, std::string_view name)
+{
+    object->SetPrivateData(WKPDID_D3DDebugObjectName, static_cast<UINT>(name.size()), name.data());
 }
 
 #define ARRAY_COUNT(a) (sizeof(a) / sizeof((a)[0]))

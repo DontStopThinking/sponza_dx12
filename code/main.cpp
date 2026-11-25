@@ -246,6 +246,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     ComPtr<ID3D12CommandAllocator> commandAllocator;
     checkHr(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator)));
     checkHr(commandAllocator->Reset());
+    setName(commandAllocator.Get(), "Command Allocator");
 
     // NOTE(sbalse): Command list is used to store a list of commands that we want to execute on the GPU
     ComPtr<ID3D12GraphicsCommandList> commandList;
@@ -285,6 +286,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     // Upgrade to IDXGISwapChain3
     ComPtr<IDXGISwapChain3> swapChain;
     checkHr(swapChain1.As(&swapChain));
+    setName(swapChain.Get(), "SwapChain");
 
     // NOTE(sbalse): Descriptor Heap to store Render Target Views.
     // A descriptor is a block of data that tells the GPU how to interpret resource memory. A descriptor heap
@@ -295,6 +297,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     rtvHeapDesc.NumDescriptors = BACK_BUFFER_COUNT;
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     checkHr(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap)));
+    setName(rtvHeap.Get(), "Render Target View Heap");
 
     ComPtr<ID3D12Resource> renderTargets[2];
 
@@ -316,6 +319,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     ComPtr<ID3D12Fence> fence;
     UINT64 fenceValue = 0;
     checkHr(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
+    setName(fence.Get(), "Fence");
 
     // NOTE(sbalse): Win32 Events are used as the link between CPU fence and GPU fence
     HANDLE fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -440,6 +444,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     ComPtr<ID3D12PipelineState> pipelineState;
     checkHr(device->CreateGraphicsPipelineState(&pipelineStateDesc, IID_PPV_ARGS(&pipelineState)));
+    setName(pipelineState.Get(), "Pipeline State");
 
     bool running = true;
 
@@ -541,15 +546,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     DestroyWindow(windowHandle);
 
 #if defined(SPONZA_DEBUG)
-    if (debugCallbackCookie != 0)
-    {
-        infoQueue->UnregisterMessageCallback(debugCallbackCookie);
-    }
-
     ComPtr<ID3D12DebugDevice> debugDevice;
     if (SUCCEEDED(device.As(&debugDevice)))
     {
         debugDevice->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL);
+    }
+
+    if (debugCallbackCookie != 0)
+    {
+        infoQueue->UnregisterMessageCallback(debugCallbackCookie);
     }
 #endif // SPONZA_DEBUG
 
