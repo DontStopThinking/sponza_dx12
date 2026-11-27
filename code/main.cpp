@@ -592,7 +592,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         const D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(g_windowContext.m_width),
                                           static_cast<float>(g_windowContext.m_height), 0.0f, 1.0f };
         const D3D12_RECT scissorRect = { 0, 0, static_cast<LONG>(g_windowContext.m_width),
-                                         static_cast<LONG>(g_windowContext.m_width) };
+                                         static_cast<LONG>(g_windowContext.m_height) };
         commandList->RSSetViewports(1, &viewport);
         commandList->RSSetScissorRects(1, &scissorRect);
 
