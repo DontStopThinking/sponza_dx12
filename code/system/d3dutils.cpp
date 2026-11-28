@@ -1,25 +1,5 @@
 #include "system/d3dutils.h"
 
-#include "system/log.h"
-
-void fatalError(std::string_view message, std::source_location location/* = std::source_location::current()*/)
-{
-    const std::string text = std::format(
-        "{}\n\nat {}:{}\nin {}",
-        message,
-        location.file_name(),
-        location.line(),
-        location.function_name());
-
-    logFatal("{}", text);
-
-    if (IsDebuggerPresent())
-    {
-        __debugbreak();
-    }
-    std::abort();
-}
-
 std::wstring toWide(std::string_view text)
 {
     if (text.empty())

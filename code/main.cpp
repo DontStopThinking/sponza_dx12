@@ -54,7 +54,7 @@ static void createRenderTargetViews(ID3D12Device* device, IDXGISwapChain3* swapC
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
     for (UINT i = 0; i < backBufferCount; i++)
     {
-        checkHr(swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i])));
+        CHECK_HR(swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i])));
         device->CreateRenderTargetView(renderTargets[i].Get(), nullptr, rtvHandle);
         setName(renderTargets[i].Get(), std::format("Back Buffer {}", i));
         rtvHandle.ptr += rtvHandleIncrementSize;
@@ -128,11 +128,11 @@ static void setDepthStencilState(D3D12_DEPTH_STENCIL_DESC& depthStencilDesc)
 static void waitForGpu(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence, UINT64& fenceValue, HANDLE fenceEvent)
 {
     const UINT64 valueToWaitFor = ++fenceValue;
-    checkHr(commandQueue->Signal(fence, valueToWaitFor));
+    CHECK_HR(commandQueue->Signal(fence, valueToWaitFor));
 
     if (fence->GetCompletedValue() < valueToWaitFor)
     {
-        checkHr(fence->SetEventOnCompletion(valueToWaitFor, fenceEvent));
+        CHECK_HR(fence->SetEventOnCompletion(valueToWaitFor, fenceEvent));
         WaitForSingleObject(fenceEvent, INFINITE);
     }
 }
@@ -252,14 +252,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     ComPtr<IDXGIFactory6> factory;
     UINT factoryFlags = 0;
     SPONZA_DEBUG_ONLY(factoryFlags |= DXGI_CREATE_FACTORY_DEBUG);
-    checkHr(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory)));
+    CHECK_HR(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory)));
 
     ComPtr<IDXGIAdapter1> adapter;
-    checkHr(factory->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+    CHECK_HR(factory->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
                                                 IID_PPV_ARGS(&adapter)));
 
     DXGI_ADAPTER_DESC1 adapterDesc = {};
-    checkHr(adapter->GetDesc1(&adapterDesc));
+    CHECK_HR(adapter->GetDesc1(&adapterDesc));
     logInfo("GPU: {} ({} MB video memory)", toUtf8(adapterDesc.Description),
             adapterDesc.DedicatedVideoMemory / (1024 * 1024));
 
@@ -279,7 +279,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 
     // NOTE(sbalse): The Device is a virtual representation of the GPU
     ComPtr<ID3D12Device> device;
-    checkHr(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device)));
+    CHECK_HR(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device)));
     setName(device.Get(), "Device");
 
     SPONZA_DEBUG_ONLY(DWORD debugCallbackCookie = 0);
@@ -312,25 +312,25 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-    checkHr(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue)));
+    CHECK_HR(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue)));
     setName(commandQueue.Get(), "Direct Command Queue");
 
     // NOTE(sbalse): Command allocator is used to allocate memory on the GPU for commands
     ComPtr<ID3D12CommandAllocator> commandAllocator;
-    checkHr(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator)));
-    checkHr(commandAllocator->Reset());
+    CHECK_HR(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator)));
+    CHECK_HR(commandAllocator->Reset());
     setName(commandAllocator.Get(), "Command Allocator");
 
     // NOTE(sbalse): Command list is used to store a list of commands that we want to execute on the GPU
     ComPtr<ID3D12GraphicsCommandList> commandList;
-    checkHr(device->CreateCommandList(
+    CHECK_HR(device->CreateCommandList(
         0,
         D3D12_COMMAND_LIST_TYPE_DIRECT,
         commandAllocator.Get(),
         nullptr,
         IID_PPV_ARGS(&commandList)));
     setName(commandList.Get(), "Direct Command List");
-    checkHr(commandList->Close()); // Start out closed
+    CHECK_HR(commandList->Close()); // Start out closed
 
     constexpr int BACK_BUFFER_COUNT = 2;
 
@@ -351,14 +351,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     swapChainDesc.Flags = 0;
 
     ComPtr<IDXGISwapChain1> swapChain1 = nullptr;
-    checkHr(factory->CreateSwapChainForHwnd(
+    CHECK_HR(factory->CreateSwapChainForHwnd(
         commandQueue.Get(), windowHandle, &swapChainDesc, nullptr, nullptr, &swapChain1));
 
-    checkHr(factory->MakeWindowAssociation(windowHandle, DXGI_MWA_NO_ALT_ENTER));
+    CHECK_HR(factory->MakeWindowAssociation(windowHandle, DXGI_MWA_NO_ALT_ENTER));
 
     // Upgrade to IDXGISwapChain3
     ComPtr<IDXGISwapChain3> swapChain;
-    checkHr(swapChain1.As(&swapChain));
+    CHECK_HR(swapChain1.As(&swapChain));
     setName(swapChain.Get(), "SwapChain");
 
     // NOTE(sbalse): Descriptor Heap to store Render Target Views.
@@ -369,7 +369,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     // NOTE(sbalse): We have the same no. of RTVs as the number of back buffers in our swapchain.
     rtvHeapDesc.NumDescriptors = BACK_BUFFER_COUNT;
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-    checkHr(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap)));
+    CHECK_HR(device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap)));
     setName(rtvHeap.Get(), "Render Target View Heap");
 
     ComPtr<ID3D12Resource> renderTargets[BACK_BUFFER_COUNT];
@@ -383,7 +383,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     // the same time.
     ComPtr<ID3D12Fence> fence;
     UINT64 fenceValue = 0;
-    checkHr(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
+    CHECK_HR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
     setName(fence.Get(), "Fence");
 
     // NOTE(sbalse): Win32 Events are used as the link between CPU fence and GPU fence
@@ -419,12 +419,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
             const std::string message = errorBlob
                 ? std::string(static_cast<const char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize())
                 : "";
-            fatalError(std::format("Root signature serialization failed: {}", message));
+            FATAL_ERROR(std::format("Root signature serialization failed: {}", message));
         }
     }
 
     ComPtr<ID3D12RootSignature> rootSignature;
-    checkHr(device->CreateRootSignature(
+    CHECK_HR(device->CreateRootSignature(
         0,
         signatureBlob->GetBufferPointer(),
         signatureBlob->GetBufferSize(),
@@ -451,7 +451,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
             const std::string message = errors
                 ? std::string(static_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize())
                 : "";
-            fatalError(
+            FATAL_ERROR(
                 std::format(
                     "Vertex shader compilation failed (HRESULT 0x{:08X}): {}",
                     static_cast<uint32_t>(hr),
@@ -477,7 +477,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
             const std::string message = errors
                 ? std::string(static_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize())
                 : "";
-            fatalError(
+            FATAL_ERROR(
                 std::format(
                     "Pixel shader compilation failed (HRESULT 0x{:08X}): {}",
                     static_cast<uint32_t>(hr),
@@ -508,7 +508,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     setDepthStencilState(pipelineStateDesc.DepthStencilState);
 
     ComPtr<ID3D12PipelineState> pipelineState;
-    checkHr(device->CreateGraphicsPipelineState(&pipelineStateDesc, IID_PPV_ARGS(&pipelineState)));
+    CHECK_HR(device->CreateGraphicsPipelineState(&pipelineStateDesc, IID_PPV_ARGS(&pipelineState)));
     setName(pipelineState.Get(), "Pipeline State");
 
     bool running = true;
@@ -562,7 +562,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
                 renderTargets[i].Reset();
             }
 
-            checkHr(swapChain->ResizeBuffers(BACK_BUFFER_COUNT, g_windowContext.m_width,
+            CHECK_HR(swapChain->ResizeBuffers(BACK_BUFFER_COUNT, g_windowContext.m_width,
                                              g_windowContext.m_height, DXGI_FORMAT_UNKNOWN,
                                              swapChainDesc.Flags));
 
@@ -572,8 +572,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         }
 
         // Record commands to draw a triangle
-        checkHr(commandAllocator->Reset());
-        checkHr(commandList->Reset(commandAllocator.Get(), nullptr));
+        CHECK_HR(commandAllocator->Reset());
+        CHECK_HR(commandList->Reset(commandAllocator.Get(), nullptr));
 
         UINT backBufferIndex = swapChain->GetCurrentBackBufferIndex();
 
@@ -625,19 +625,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
             commandList->ResourceBarrier(1, &barrier);
         }
 
-        checkHr(commandList->Close());
+        CHECK_HR(commandList->Close());
 
         ID3D12CommandList* commandLists[] = { commandList.Get() };
 
         // NOTE(sbalse): This line is what sends the current frame's commands to the GPU queue
         commandQueue->ExecuteCommandLists(1, commandLists);
 
-        checkHr(swapChain->Present(1, 0));
+        CHECK_HR(swapChain->Present(1, 0));
 
         // Wait on the CPU for the GPU frame to finish
         const UINT64 valueToWaitFor = ++fenceValue;
         // NOTE(sbalse): Add one more command to the end of the queue to write `currentFenceValue` into the fence
-        checkHr(commandQueue->Signal(fence.Get(), valueToWaitFor));
+        CHECK_HR(commandQueue->Signal(fence.Get(), valueToWaitFor));
 
         // NOTE(sbalse): This immediately checks if the GPU's fence value is less than the CPU's. If it is, then
         // that means the GPU is behind the CPU, and so we put the CPU to sleep.
