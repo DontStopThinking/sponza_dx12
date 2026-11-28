@@ -19,8 +19,14 @@ struct WindowContext
 {
     UINT m_width{0};
     UINT m_height{0};
+    float m_aspectRatio{0.0f};
     bool resizePending{false};
     bool m_minimized{false};
+
+    inline void updateAspectRatio()
+    {
+        m_aspectRatio = static_cast<float>(m_width) / m_height;
+    }
 };
 static WindowContext g_windowContext = {};
 
@@ -177,6 +183,7 @@ static LRESULT CALLBACK windowProc(HWND windowHandle, UINT message, WPARAM wPara
                 {
                     g_windowContext.m_width = width;
                     g_windowContext.m_height = height;
+                    g_windowContext.updateAspectRatio();
                     g_windowContext.resizePending = true;
                 }
             }
@@ -240,7 +247,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     GetClientRect(windowHandle, &clientRect);
     g_windowContext.m_width = static_cast<UINT>(clientRect.right - clientRect.left);
     g_windowContext.m_height = static_cast<UINT>(clientRect.bottom - clientRect.top);
-    g_windowContext.resizePending = false;
+    g_windowContext.updateAspectRatio();
 
     ComPtr<IDXGIFactory6> factory;
     UINT factoryFlags = 0;
@@ -387,7 +394,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
     // For our rotating triangle, we need only a single root parameter constant for our angle.
     D3D12_ROOT_PARAMETER rootParameters[1] = {};
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    rootParameters[0].Constants.Num32BitValues = 1;
+    rootParameters[0].Constants.Num32BitValues = 2;
     rootParameters[0].Constants.ShaderRegister = 0;
     rootParameters[0].Constants.RegisterSpace = 0;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
@@ -602,6 +609,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         commandList->SetPipelineState(pipelineState.Get());
 
         commandList->SetGraphicsRoot32BitConstant(0, std::bit_cast<UINT>(triangleAngle), 0);
+        commandList->SetGraphicsRoot32BitConstant(0, std::bit_cast<UINT>(g_windowContext.m_aspectRatio), 1);
 
         // NOTE(sbalse): Draw Call
         commandList->DrawInstanced(3, 1, 0, 0);

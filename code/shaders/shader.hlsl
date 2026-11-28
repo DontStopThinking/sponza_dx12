@@ -6,7 +6,8 @@ struct PSInput
 
 cbuffer cb0 : register(b0)
 {
-    float angle; // radians
+    float angle; // In radians
+    float aspectRatio;
 }
 
 // Vertex Shader
@@ -38,7 +39,8 @@ PSInput VSMain(unsigned int index : SV_VertexID)
     rotatedPos.x = inputPos.x * cosTheta - inputPos.y * sinTheta;
     rotatedPos.y = inputPos.x * sinTheta + inputPos.y * cosTheta;
 
-    result.position = float4(rotatedPos.x, rotatedPos.y, 0.0f, 1.0f);
+    result.position = float4(rotatedPos.x / aspectRatio, rotatedPos.y, 0.0f, 1.0f);
+
     result.color = colors[index];
 
     return result;
