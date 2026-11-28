@@ -601,8 +601,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         commandList->SetGraphicsRootSignature(rootSignature.Get());
         commandList->SetPipelineState(pipelineState.Get());
 
-        // Draw the triangle
         commandList->SetGraphicsRoot32BitConstant(0, std::bit_cast<UINT>(triangleAngle), 0);
+
+        // NOTE(sbalse): Draw Call
         commandList->DrawInstanced(3, 1, 0, 0);
 
         {
@@ -619,7 +620,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         checkHr(commandList->Close());
 
         ID3D12CommandList* commandLists[] = { commandList.Get() };
-        // NOTE(sbalse): This line actually sends the current frame's commands to the GPU queue
+
+        // NOTE(sbalse): This line is what sends the current frame's commands to the GPU queue
         commandQueue->ExecuteCommandLists(1, commandLists);
 
         checkHr(swapChain->Present(1, 0));
